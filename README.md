@@ -17,6 +17,9 @@
 
 ---
 
+
+![](parkinson.gif)
+
 ## 📌 Overview
 
 NeuroVision PD analyzes resting head tremor — a hallmark symptom of Parkinson's Disease — using only a standard camera. The system tracks 68 facial landmarks per frame, estimates 3D head pose, extracts tremor frequency from the yaw (left-right rotation) signal using Welch's Power Spectral Density method, and classifies the result using a machine learning model.
