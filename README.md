@@ -46,9 +46,9 @@ NeuroVision PD analyzes resting head tremor — a hallmark symptom of Parkinson'
 The detection pipeline mirrors the clinical assessment of resting tremor:
 
 ```
-Video Frame
-    │
-    ▼
+        Video Frame
+            │
+            ▼
 ┌─────────────────────────────┐
 │  1. Face Detection (ONNX)   │  → Bounding box + confidence score
 └────────────┬────────────────┘
@@ -148,6 +148,12 @@ assets/
 ├── face_landmarks.onnx     ← 68-point landmark model
 └── model.txt               ← Model configuration
 ```
+Pre-trained models provided in the assets directory. Download them with Git LFS:
+
+git lfs pull
+Or, download manually from the release page. https://github.com/yinguobing/head-pose-estimation/releases
+and put in assests
+
 
 ---
 
