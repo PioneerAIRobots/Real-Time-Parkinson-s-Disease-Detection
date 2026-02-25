@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeuroVision PD — Parkinson's Detection System</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #040b14;
+    --surface: #071525;
+    --surface2:#0a1e35;
+    --border:  rgba(0,180,255,0.12);
+    --accent:  #00b4ff;
+    --accent2: #00ffd2;
+    --danger:  #ff3d6b;
+    --warn:    #ffa500;
+    --text:    #e8f4ff;
+    --muted:   #4a7090;
+    --glow:    0 0 40px rgba(0,180,255,0.15);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'DM Mono', monospace;
+    background: var(--bg); color: var(--text);
+    overflow-x: hidden; min-height: 100vh;
+  }
+
+  /* BG */
+  .bg-grid {
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(0,180,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,180,255,0.03) 1px, transparent 1px);
+    background-size: 48px 48px; pointer-events: none;
+  }
+  .bg-orb { position: fixed; border-radius: 50%; filter: blur(120px); pointer-events: none; z-index: 0; }
+  .bg-orb-1 { width:600px;height:600px;background:rgba(0,100,200,0.1);top:-200px;right:-100px;animation:orb1 18s ease-in-out infinite; }
+  .bg-orb-2 { width:400px;height:400px;background:rgba(0,255,180,0.06);bottom:100px;left:-100px;animation:orb2 14s ease-in-out infinite; }
+  @keyframes orb1{0%,100%{transform:translate(0,0)}50%{transform:translate(-60px,80px)}}
+  @keyframes orb2{0%,100%{transform:translate(0,0)}50%{transform:translate(80px,-50px)}}
+  #particles{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5}
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    padding: 1rem 2rem;
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(4,11,20,0.88); backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-logo {
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1rem;
+    color: var(--accent); display: flex; align-items: center; gap: .7rem;
+  }
+  .logo-icon {
+    width:32px;height:32px;border:2px solid var(--accent);border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-size:.7rem;
+    animation:pulse 3s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,180,255,.4)}50%{box-shadow:0 0 0 8px rgba(0,180,255,0)}}
+  .nav-links { display:flex; gap:2rem; }
+  .nav-links a { color:var(--muted);text-decoration:none;font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;transition:color .2s; }
+  .nav-links a:hover { color:var(--accent); }
+  .nav-status { display:flex;align-items:center;gap:.5rem;font-size:.68rem;color:var(--accent2); }
+  .status-dot { width:8px;height:8px;border-radius:50%;background:var(--accent2);animation:blink 2s ease-in-out infinite; }
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+  /* MAIN LAYOUT */
+  .main { padding: 5.5rem 0 2rem; position: relative; z-index: 1; }
+  .container { max-width: 1400px; margin: 0 auto; padding: 0 1.5rem; }
+
+  /* SOURCE SELECTOR */
+  .source-bar {
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    margin-bottom: 1.2rem;
+    padding: .8rem 1.2rem;
+    background: var(--surface);
+    border: 1px solid var(--border); border-radius: 4px;
+  }
+  .source-label { font-size: .65rem; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+  .source-select {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: .72rem;
+    padding: .4rem .8rem; border-radius: 2px; cursor: pointer;
+    flex: 1; max-width: 300px;
+  }
+  .source-select:focus { outline: none; border-color: var(--accent); }
+  .ctrl-btn {
+    padding: .4rem 1rem; background: transparent; border: 1px solid var(--border);
+    color: var(--text); border-radius: 2px; font-family: 'DM Mono', monospace;
+    font-size: .68rem; cursor: pointer; transition: all .2s; letter-spacing: .05em;
+    white-space: nowrap;
+  }
+  .ctrl-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .ctrl-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .ctrl-btn.danger { border-color: rgba(255,61,107,.4); color: var(--danger); }
+  .ctrl-btn.danger:hover { background: var(--danger); color: #fff; }
+
+  /* GRID */
+  .analysis-grid {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    grid-template-rows: auto auto;
+    gap: 1rem;
+    align-items: start;
+  }
+
+  /* VIDEO PANEL */
+  .video-panel {
+    grid-row: 1 / 3;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; overflow: hidden; box-shadow: var(--glow);
+  }
+  .video-topbar {
+    background: var(--surface2); border-bottom: 1px solid var(--border);
+    padding: .7rem 1rem;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .topbar-dots { display:flex;gap:.4rem; }
+  .dot { width:10px;height:10px;border-radius:50%; }
+  .dot-r{background:var(--danger)} .dot-y{background:var(--warn)} .dot-g{background:var(--accent2)}
+  .topbar-title { font-size:.6rem;color:var(--muted);letter-spacing:.08em; }
+  .rec-badge {
+    display:flex;align-items:center;gap:.4rem;
+    font-size:.6rem;color:var(--danger);letter-spacing:.1em;
+  }
+  .rec-dot{width:7px;height:7px;border-radius:50%;background:var(--danger);animation:blink 1s ease-in-out infinite;}
+
+  /* STREAM */
+  .stream-wrap {
+    position: relative; background: #000;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 320px;
+  }
+  #streamImg {
+    width: 100%; display: block;
+    max-height: 520px; object-fit: contain;
+  }
+  .stream-offline {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 1rem;
+    font-size: .75rem; color: var(--muted); letter-spacing: .08em;
+  }
+  .stream-offline .spinner {
+    width:40px;height:40px;border:3px solid rgba(0,180,255,.15);
+    border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* WAVEFORM */
+  .waveform-panel {
+    padding: .8rem 1rem; border-top: 1px solid var(--border); background: var(--surface);
+  }
+  .wf-header {
+    display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;
+  }
+  .wf-label { font-size:.58rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase; }
+  .wf-freq  { font-size:.65rem;color:var(--accent);font-weight:500; }
+  #waveCanvas { width:100%;height:72px;display:block;border-radius:2px; }
+
+  /* FRAME CHIPS */
+  .chip-row { display:flex;gap:.5rem;flex-wrap:wrap;padding:.7rem 1rem;border-top:1px solid var(--border); }
+  .chip {
+    background:var(--surface2);border:1px solid var(--border);
+    border-radius:2px;padding:.25rem .6rem;
+    font-size:.58rem;color:var(--muted);
+    display:flex;align-items:center;gap:.35rem;
+  }
+  .chip span{color:var(--accent);font-weight:500;}
+
+  /* ── RIGHT PANEL ── */
+  /* DIAGNOSIS CARD */
+  .diagnosis-card {
+    background:var(--bg);border:1px solid var(--border);
+    border-radius:6px;overflow:hidden;box-shadow:var(--glow);
+    transition:border-color .5s,box-shadow .5s;
+  }
+  .diagnosis-card.pd-mode { border-color:rgba(255,61,107,.45); box-shadow:0 0 40px rgba(255,61,107,.12); }
+  .diagnosis-card.healthy-mode { border-color:rgba(0,255,210,.3); }
+
+  .diag-header {
+    padding:.9rem 1.1rem .7rem;border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .diag-title { font-family:'Syne',sans-serif;font-size:.75rem;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase; }
+  .diag-badge {
+    font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;
+    padding:.22rem .65rem;border-radius:2px;border:1px solid;transition:all .5s;
+  }
+  .diag-badge.healthy{background:rgba(0,255,180,.1);color:var(--accent2);border-color:var(--accent2)}
+  .diag-badge.pd     {background:rgba(255,61,107,.1);color:var(--danger);border-color:var(--danger)}
+  .diag-badge.waiting{background:rgba(74,112,144,.1);color:var(--muted);border-color:var(--muted)}
+
+  .diag-body {padding:1rem;display:flex;gap:1rem;align-items:center;}
+  #gaugeCanvas{flex-shrink:0;}
+
+  .diag-info{flex:1;}
+  .diag-result{font-family:'Syne',sans-serif;font-size:.92rem;font-weight:700;margin-bottom:.6rem;line-height:1.25;transition:color .5s;}
+  .diag-result.pd     { color:var(--danger); }
+  .diag-result.healthy{ color:var(--accent2);}
+  .diag-result.waiting{ color:var(--muted);  }
+
+  .conf-label{font-size:.56rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.35rem;}
+  .conf-bg{background:rgba(0,180,255,.07);border-radius:2px;height:7px;overflow:hidden;}
+  .conf-fill{height:7px;border-radius:2px;transition:width .5s ease,background .5s;width:0%;}
+  .conf-pct{font-size:.68rem;color:var(--accent);margin-top:.3rem;text-align:right;}
+
+  /* POSE AXES */
+  .pose-card { background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:.9rem 1.1rem; }
+  .card-title { font-size:.58rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.8rem; }
+  .axis-row { display:flex;align-items:center;gap:.7rem;margin-bottom:.55rem; }
+  .axis-label { font-size:.62rem;color:var(--muted);width:44px; }
+  .axis-track { flex:1;height:6px;background:rgba(0,180,255,.07);border-radius:3px;position:relative;overflow:hidden; }
+  .axis-fill {
+    position:absolute;height:6px;border-radius:3px;top:0;transition:left .12s,width .12s;
+  }
+  .axis-val { font-size:.62rem;color:var(--accent);width:52px;text-align:right; }
+
+  /* SIGNAL CARD */
+  .signal-card { background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:.9rem 1.1rem; }
+  .sig-row {
+    display:flex;align-items:center;padding:.42rem 0;
+    border-bottom:1px solid rgba(0,180,255,.05);
+  }
+  .sig-row:last-child{border-bottom:none;}
+  .sig-name{font-size:.65rem;color:var(--muted);width:110px;flex-shrink:0;}
+  .sig-bar-wrap{flex:1;margin:0 .7rem;}
+  .sig-bar-bg{background:rgba(0,180,255,.07);height:3px;border-radius:2px;}
+  .sig-bar-fill{height:3px;border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s;}
+  .sig-val{font-size:.65rem;color:var(--text);font-weight:500;width:68px;text-align:right;}
+
+  /* METRICS TILES */
+  .tiles-grid { display:grid;grid-template-columns:1fr 1fr;gap:.7rem; }
+  .tile {
+    background:var(--bg);border:1px solid var(--border);border-radius:4px;
+    padding:.8rem;transition:border-color .3s;
+    position:relative;overflow:hidden;
+  }
+  .tile::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));opacity:0;transition:opacity .3s;}
+  .tile:hover{border-color:rgba(0,180,255,.3);}
+  .tile:hover::before{opacity:1;}
+  .tile-label{font-size:.54rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4rem;}
+  .tile-val  {font-size:1.1rem;font-weight:500;color:var(--accent);}
+  .tile-sub  {font-size:.55rem;color:var(--muted);margin-top:.2rem;}
+
+  /* scrollbar */
+  ::-webkit-scrollbar{width:5px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+
+  @media(max-width:1100px){.analysis-grid{grid-template-columns:1fr;}}
+  @media(max-width:700px){.nav-links{display:none}.tiles-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<canvas id="particles"></canvas>
+<div class="bg-grid"></div>
+<div class="bg-orb bg-orb-1"></div>
+<div class="bg-orb bg-orb-2"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <div class="logo-icon">NV</div>
+    NeuroVision PD
+  </div>
+  <div class="nav-links">
+    <a href="#">Analysis</a>
+    <a href="#">Methodology</a>
+    <a href="#">Documentation</a>
+  </div>
+  <div class="nav-status">
+    <div class="status-dot" id="systemDot"></div>
+    <span id="systemStatus">Connecting...</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="container">
+
+    <!-- SOURCE BAR -->
+    <div class="source-bar">
+      <span class="source-label">Video Source</span>
+      <select class="source-select" id="videoSelect">
+        <option value="">— Select video file —</option>
+      </select>
+      <button class="ctrl-btn active" onclick="loadSelected()">▶ Load & Analyze</button>
+      <button class="ctrl-btn" onclick="loadWebcam()">📷 Use Webcam</button>
+      <button class="ctrl-btn danger" onclick="stopAnalysis()">■ Stop</button>
+      <div style="margin-left:auto;font-size:.62rem;color:var(--muted)" id="sourceInfo">No source selected</div>
+    </div>
+
+    <!-- GRID -->
+    <div class="analysis-grid">
+
+      <!-- VIDEO PANEL (spans 2 rows) -->
+      <div class="video-panel">
+        <div class="video-topbar">
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <div class="topbar-dots">
+              <div class="dot dot-r"></div>
+              <div class="dot dot-y"></div>
+              <div class="dot dot-g"></div>
+            </div>
+            <span class="topbar-title">NeuroVision PD — Live Analysis Feed</span>
+          </div>
+          <div class="rec-badge" id="recBadge" style="visibility:hidden">
+            <div class="rec-dot"></div> LIVE
+          </div>
+        </div>
+
+        <div class="stream-wrap">
+          <img id="streamImg" src="" alt="" style="display:none" onload="onStreamLoad()">
+          <div class="stream-offline" id="streamOffline">
+            <div class="spinner"></div>
+            <div>Select a video source to begin analysis</div>
+          </div>
+        </div>
+
+        <!-- WAVEFORM -->
+        <div class="waveform-panel">
+          <div class="wf-header">
+            <span class="wf-label">Yaw Signal (Head Rotation) — Tremor Waveform</span>
+            <span class="wf-freq" id="wfFreq">— Hz</span>
+          </div>
+          <canvas id="waveCanvas"></canvas>
+        </div>
+
+        <!-- CHIPS -->
+        <div class="chip-row">
+          <div class="chip">Frame <span id="chipFrame">0</span></div>
+          <div class="chip">FPS <span id="chipFps">—</span></div>
+          <div class="chip">Buffer <span id="chipBuf">0/150</span></div>
+          <div class="chip">Face <span id="chipFace">—</span></div>
+          <div class="chip">Band Power <span id="chipBand">—</span></div>
+          <div class="chip">Conf <span id="chipConf">—</span></div>
+        </div>
+      </div>
+
+      <!-- TOP-RIGHT: DIAGNOSIS -->
+      <div class="diagnosis-card" id="diagCard">
+        <div class="diag-header">
+          <span class="diag-title">Clinical Assessment</span>
+          <span class="diag-badge waiting" id="diagBadge">AWAITING VIDEO</span>
+        </div>
+        <div class="diag-body">
+          <canvas id="gaugeCanvas" width="96" height="96"></canvas>
+          <div class="diag-info">
+            <div class="diag-result waiting" id="diagResult">Select a video<br>source to begin</div>
+            <div class="conf-label">PD Probability Score</div>
+            <div class="conf-bg"><div class="conf-fill" id="confFill"></div></div>
+            <div class="conf-pct" id="confPct">— %</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM-RIGHT stacked -->
+      <div style="display:flex;flex-direction:column;gap:1rem;">
+
+        <!-- POSE -->
+        <div class="pose-card">
+          <div class="card-title">3D Head Pose Estimation</div>
+          <div class="axis-row">
+            <span class="axis-label">YAW</span>
+            <div class="axis-track"><div class="axis-fill" id="yawFill" style="background:var(--accent)"></div></div>
+            <span class="axis-val" id="yawVal">— °</span>
+          </div>
+          <div class="axis-row">
+            <span class="axis-label">PITCH</span>
+            <div class="axis-track"><div class="axis-fill" id="pitchFill" style="background:var(--accent2)"></div></div>
+            <span class="axis-val" id="pitchVal">— °</span>
+          </div>
+          <div class="axis-row">
+            <span class="axis-label">ROLL</span>
+            <div class="axis-track"><div class="axis-fill" id="rollFill" style="background:#ffa500"></div></div>
+            <span class="axis-val" id="rollVal">— °</span>
+          </div>
+        </div>
+
+        <!-- SIGNAL FEATURES -->
+        <div class="signal-card">
+          <div class="card-title">Tremor Signal Features</div>
+          <div class="sig-row">
+            <span class="sig-name">Dominant Freq.</span>
+            <div class="sig-bar-wrap"><div class="sig-bar-bg"><div class="sig-bar-fill" id="freqFill" style="width:0%"></div></div></div>
+            <span class="sig-val" id="freqVal">— Hz</span>
+          </div>
+          <div class="sig-row">
+            <span class="sig-name">Amplitude σ</span>
+            <div class="sig-bar-wrap"><div class="sig-bar-bg"><div class="sig-bar-fill" id="ampFill" style="width:0%"></div></div></div>
+            <span class="sig-val" id="ampVal">— °</span>
+          </div>
+          <div class="sig-row">
+            <span class="sig-name">Mean Velocity</span>
+            <div class="sig-bar-wrap"><div class="sig-bar-bg"><div class="sig-bar-fill" id="velFill" style="width:0%"></div></div></div>
+            <span class="sig-val" id="velVal">— °/f</span>
+          </div>
+          <div class="sig-row">
+            <span class="sig-name">Band Power 3–6Hz</span>
+            <div class="sig-bar-wrap"><div class="sig-bar-bg"><div class="sig-bar-fill" id="bandFill" style="width:0%"></div></div></div>
+            <span class="sig-val" id="bandVal">—</span>
+          </div>
+        </div>
+
+        <!-- TILES -->
+        <div class="tiles-grid">
+          <div class="tile">
+            <div class="tile-label">Nose Tip Y</div>
+            <div class="tile-val" id="tileNose">—</div>
+            <div class="tile-sub">Landmark #30</div>
+          </div>
+          <div class="tile">
+            <div class="tile-label">Eye Distance</div>
+            <div class="tile-val" id="tileEye">—</div>
+            <div class="tile-sub">px</div>
+          </div>
+          <div class="tile">
+            <div class="tile-label">Jaw Width</div>
+            <div class="tile-val" id="tileJaw">—</div>
+            <div class="tile-sub">px</div>
+          </div>
+          <div class="tile">
+            <div class="tile-label">Face Conf.</div>
+            <div class="tile-val" id="tileConf">—</div>
+            <div class="tile-sub">score</div>
+          </div>
+        </div>
+
+      </div><!-- end bottom-right -->
+    </div><!-- end analysis-grid -->
+  </div><!-- container -->
+</div><!-- main -->
+
+<script>
+/* ===== PARTICLES ===== */
+const pc=document.getElementById('particles');
+const px=pc.getContext('2d');
+let PW,PH,parts=[];
+function rp(){PW=pc.width=window.innerWidth;PH=pc.height=window.innerHeight;}
+class P{constructor(){this.r2();}r2(){this.x=Math.random()*PW;this.y=Math.random()*PH;this.vx=(Math.random()-.5)*.3;this.vy=(Math.random()-.5)*.3;this.r=Math.random()*1.5+.3;this.a=Math.random()*.5+.1;}up(){this.x+=this.vx;this.y+=this.vy;if(this.x<0||this.x>PW||this.y<0||this.y>PH)this.r2();}draw(){px.beginPath();px.arc(this.x,this.y,this.r,0,Math.PI*2);px.fillStyle=`rgba(0,180,255,${this.a})`;px.fill();}}
+function ip(){rp();parts=Array.from({length:70},()=>new P());}
+function ap(){px.clearRect(0,0,PW,PH);parts.forEach(p=>{p.up();p.draw();});for(let i=0;i<parts.length;i++)for(let j=i+1;j<parts.length;j++){const dx=parts[i].x-parts[j].x,dy=parts[i].y-parts[j].y,d=Math.sqrt(dx*dx+dy*dy);if(d<100){px.beginPath();px.moveTo(parts[i].x,parts[i].y);px.lineTo(parts[j].x,parts[j].y);px.strokeStyle=`rgba(0,180,255,${.06*(1-d/100)})`;px.lineWidth=.5;px.stroke();}}requestAnimationFrame(ap);}
+window.addEventListener('resize',rp);ip();ap();
+
+/* ===== GAUGE ===== */
+const gc=document.getElementById('gaugeCanvas');
+const gx=gc.getContext('2d');
+let _prob=0;
+
+function drawGauge(prob){
+  _prob=prob;
+  gx.clearRect(0,0,96,96);
+  const cx=48,cy=48,r=36;
+  gx.beginPath();gx.arc(cx,cy,r,0,Math.PI*2);
+  gx.strokeStyle='rgba(0,180,255,0.1)';gx.lineWidth=6;gx.stroke();
+  const color=prob>.7?'#ff3d6b':'#00ffd2';
+  gx.beginPath();gx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+prob*Math.PI*2);
+  gx.strokeStyle=color;gx.lineWidth=6;gx.lineCap='round';
+  gx.shadowBlur=10;gx.shadowColor=color;gx.stroke();gx.shadowBlur=0;
+  gx.fillStyle='#e8f4ff';gx.font='bold 15px Syne,sans-serif';
+  gx.textAlign='center';gx.textBaseline='middle';
+  gx.fillText(`${Math.round(prob*100)}%`,cx,cy);
+}
+drawGauge(0);
+
+/* ===== WAVEFORM ===== */
+const wc=document.getElementById('waveCanvas');
+const wx=wc.getContext('2d');
+let waveData=[];
+
+function drawWaveform(data, domFreq){
+  const W=wc.offsetWidth,H=wc.offsetHeight;
+  if(!W||!H)return;
+  wc.width=W*devicePixelRatio;wc.height=H*devicePixelRatio;
+  wx.scale(devicePixelRatio,devicePixelRatio);
+  wx.clearRect(0,0,W,H);
+
+  // Grid
+  wx.strokeStyle='rgba(0,180,255,0.05)';wx.lineWidth=1;
+  for(let y=0;y<=H;y+=H/4){wx.beginPath();wx.moveTo(0,y);wx.lineTo(W,y);wx.stroke();}
+  for(let x=0;x<=W;x+=W/8){wx.beginPath();wx.moveTo(x,0);wx.lineTo(x,H);wx.stroke();}
+  wx.strokeStyle='rgba(255,255,255,0.06)';
+  wx.beginPath();wx.moveTo(0,H/2);wx.lineTo(W,H/2);wx.stroke();
+
+  // PD band highlight
+  wx.fillStyle='rgba(255,61,107,0.04)';wx.fillRect(W*.3,0,W*.3,H);
+  wx.fillStyle='rgba(255,61,107,0.5)';wx.font='9px monospace';
+  wx.fillText('PD BAND (3–6Hz)',W*.32,11);
+
+  if(!data||data.length<2){
+    wx.fillStyle='rgba(74,112,144,0.5)';wx.font='11px monospace';
+    wx.textAlign='center';wx.fillText('Waveform will appear when video plays',W/2,H/2);
+    wx.textAlign='left';return;
+  }
+  const mx=Math.max(...data.map(Math.abs),.5);
+  const xs=W/(data.length-1);
+  const col=_prob>.7?'#ff3d6b':'#00ffd2';
+  wx.beginPath();
+  data.forEach((v,i)=>{const x=i*xs,y=H/2-(v/mx)*(H/2.5);i===0?wx.moveTo(x,y):wx.lineTo(x,y);});
+  wx.strokeStyle=col;wx.lineWidth=2;wx.shadowBlur=8;wx.shadowColor=col;wx.stroke();wx.shadowBlur=0;
+}
+drawWaveform([], 0);
+
+/* ===== AXIS BAR ===== */
+function updateAxisBar(fillId, angle, color){
+  const el=document.getElementById(fillId);
+  const cl=Math.max(-50,Math.min(50,angle));
+  const hw=Math.abs(cl)/50*50;
+  el.style.background=color;
+  if(cl>=0){el.style.left='50%';el.style.width=hw+'%';}
+  else{el.style.left=(50-hw)+'%';el.style.width=hw+'%';}
+}
+
+/* ===== DIAGNOSIS UPDATE ===== */
+function updateDiagnosis(prob){
+  drawGauge(prob);
+  const fill=document.getElementById('confFill');
+  const pct =document.getElementById('confPct');
+  const res =document.getElementById('diagResult');
+  const badge=document.getElementById('diagBadge');
+  const card=document.getElementById('diagCard');
+  fill.style.width=`${prob*100}%`;
+  pct.textContent=`${(prob*100).toFixed(1)} %`;
+  if(prob>.7){
+    fill.style.background='linear-gradient(90deg,#ff3d6b,#ff6b8a)';
+    res.className='diag-result pd';res.innerHTML="Parkinson's Disease<br>Indicators Detected";
+    badge.className='diag-badge pd';badge.textContent='PD LIKELY';
+    card.className='diagnosis-card pd-mode';
+  } else if(prob>.5){
+    fill.style.background='linear-gradient(90deg,#ffa500,#ffcc44)';
+    res.className='diag-result waiting';res.innerHTML='Borderline Signal<br>Monitoring...';
+    badge.className='diag-badge waiting';badge.textContent='INCONCLUSIVE';
+    card.className='diagnosis-card';
+  } else {
+    fill.style.background='linear-gradient(90deg,var(--accent2),var(--accent))';
+    res.className='diag-result healthy';res.innerHTML='Healthy Movement<br>Pattern Observed';
+    badge.className='diag-badge healthy';badge.textContent='HEALTHY';
+    card.className='diagnosis-card healthy-mode';
+  }
+}
+
+/* ===== STATS POLLING ===== */
+let statsInterval=null;
+
+function startPolling(){
+  if(statsInterval)clearInterval(statsInterval);
+  statsInterval=setInterval(fetchStats,150);  // ~6 updates/sec
+}
+
+async function fetchStats(){
+  try{
+    const r=await fetch('/api/stats');
+    const d=await r.json();
+    applyStats(d);
+  }catch(e){}
+}
+
+function applyStats(d){
+  // Face chips
+  document.getElementById('chipFrame').textContent=d.frame_count||0;
+  document.getElementById('chipFps').textContent=(d.fps||0).toFixed(1);
+  document.getElementById('chipBuf').textContent=`${d.buffer_size||0}/150`;
+  document.getElementById('chipFace').textContent=d.face_detected?'✓ Detected':'Not Detected';
+  document.getElementById('chipBand').textContent=(d.band_power_ratio||0).toFixed(3);
+  document.getElementById('chipConf').textContent=(d.face_confidence||0).toFixed(2);
+
+  // Diagnosis
+  updateDiagnosis(d.prob||0);
+
+  // Pose
+  updateAxisBar('yawFill',   d.yaw||0,   'var(--accent)');
+  updateAxisBar('pitchFill', d.pitch||0, 'var(--accent2)');
+  updateAxisBar('rollFill',  d.roll||0,  '#ffa500');
+  document.getElementById('yawVal').textContent=`${((d.yaw||0)>=0?'+':'')}${(d.yaw||0).toFixed(1)} °`;
+  document.getElementById('pitchVal').textContent=`${((d.pitch||0)>=0?'+':'')}${(d.pitch||0).toFixed(1)} °`;
+  document.getElementById('rollVal').textContent=`${((d.roll||0)>=0?'+':'')}${(d.roll||0).toFixed(1)} °`;
+
+  // Signal features
+  const freq=d.dominant_freq||0;
+  const amp =d.tremor_amplitude||0;
+  const vel =d.mean_velocity||0;
+  const band=d.band_power_ratio||0;
+  document.getElementById('freqVal').textContent=`${freq.toFixed(2)} Hz`;
+  document.getElementById('ampVal').textContent =`${amp.toFixed(3)} °`;
+  document.getElementById('velVal').textContent =`${vel.toFixed(4)} °/f`;
+  document.getElementById('bandVal').textContent=band.toFixed(4);
+  document.getElementById('freqFill').style.width=`${Math.min(freq/7*100,100)}%`;
+  document.getElementById('ampFill').style.width =`${Math.min(amp*10,100)}%`;
+  document.getElementById('velFill').style.width =`${Math.min(vel*500,100)}%`;
+  document.getElementById('bandFill').style.width=`${Math.min(band*200,100)}%`;
+  document.getElementById('wfFreq').textContent=`${freq.toFixed(2)} Hz`;
+
+  // Tiles
+  document.getElementById('tileNose').textContent=(d.nose_tip_y||0).toFixed(0);
+  document.getElementById('tileEye').textContent =(d.eye_distance||0).toFixed(0);
+  document.getElementById('tileJaw').textContent =(d.jaw_width||0).toFixed(0);
+  document.getElementById('tileConf').textContent=(d.face_confidence||0).toFixed(3);
+
+  // Waveform
+  drawWaveform(d.waveform||[], freq);
+
+  // System status
+  document.getElementById('systemStatus').textContent=
+    d.face_detected?'Face Detected':'Scanning...';
+}
+
+/* ===== STREAM ===== */
+function startStream(){
+  const img=document.getElementById('streamImg');
+  img.src='/video_feed?t='+Date.now();
+  img.style.display='block';
+  document.getElementById('streamOffline').style.display='none';
+  document.getElementById('recBadge').style.visibility='visible';
+  document.getElementById('systemDot').style.background='var(--accent2)';
+  startPolling();
+}
+
+function onStreamLoad(){
+  // stream connected
+}
+
+/* ===== SOURCE CONTROLS ===== */
+async function loadVideoList(){
+  try{
+    const r=await fetch('/api/videos');
+    const videos=await r.json();
+    const sel=document.getElementById('videoSelect');
+    sel.innerHTML='<option value="">— Select video file —</option>';
+    videos.forEach(v=>{
+      const o=document.createElement('option');
+      o.value=v;o.textContent=v;
+      sel.appendChild(o);
+    });
+    if(videos.length>0){sel.value=videos[0];}
+  }catch(e){console.error(e);}
+}
+
+async function loadSelected(){
+  const sel=document.getElementById('videoSelect').value;
+  if(!sel){alert('Please select a video file.');return;}
+  await fetch('/api/set_source',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({type:'file',path:sel})
+  });
+  document.getElementById('sourceInfo').textContent=`📹 ${sel}`;
+  setTimeout(startStream,400);
+}
+
+async function loadWebcam(){
+  await fetch('/api/set_source',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({type:'cam',cam_index:0})
+  });
+  document.getElementById('sourceInfo').textContent='📷 Webcam (cam 0)';
+  setTimeout(startStream,400);
+}
+
+function stopAnalysis(){
+  const img=document.getElementById('streamImg');
+  img.src='';img.style.display='none';
+  document.getElementById('streamOffline').style.display='flex';
+  document.getElementById('recBadge').style.visibility='hidden';
+  document.getElementById('sourceInfo').textContent='Stopped';
+  if(statsInterval)clearInterval(statsInterval);
+}
+
+/* ===== INIT ===== */
+loadVideoList();
+// Auto-start first video after short delay to let server boot
+setTimeout(async()=>{
+  const sel=document.getElementById('videoSelect');
+  if(sel.value){await loadSelected();}
+},800);
+</script>
+</body>
+</html>
